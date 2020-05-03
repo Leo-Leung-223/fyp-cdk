@@ -1,0 +1,12 @@
+version: 0.2
+
+phase:
+    install:
+       commands:
+         - sudo yum update -y
+         - npm install 
+         
+    build:
+        commands:
+          - pwd
+          - ls

@@ -11,6 +11,8 @@ from aws_cdk import (
     aws_dynamodb as ddb,
     aws_lambda as _lambda,
     aws_kms as kms,
+    aws_secretsmanager as sm,
+    aws_amplify as amplify,
     core,
 )
 
@@ -19,12 +21,11 @@ class CdkdeployStack(core.Stack):
 
     def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
-    
-        github_repo="https://github.com/180133517/FYP-repo.git"
+        
+        github_repo="FYP-repo"
         repo_owner="180133517"
         
-       
-        
+
         table= ddb.Table(self,"user_table",partition_key={   #create a user table
             'name':'id', 'type': ddb.AttributeType.STRING},
             sort_key={'name':'userName','type':ddb.AttributeType.STRING}
@@ -42,34 +43,35 @@ class CdkdeployStack(core.Stack):
         
         table.grant_read_write_data(lambda_function)  #grant permission for lambda function to write to table
         
+        #token=sm.Secret(self,"token_secert",
+        #        description="this is github_token",
+        #        secret_name=secret_name,
+        #        generate_secret_string={'secret_string_template':'{"github":"token"}', 
+        #        'generate_string_key':"f904a6e064208f43a92151fc2758ae63405cece8"}
+        #        )    
+        #        
         
-        amplify_build=codebuild.PipelineProject(
-            self, "AmplifyBuild",
-            build_spec=codebuild.BuildSpec.from_object(dict(
-                version="0.2",
-                phase=dict(
-                    install=dict(
-                        commands=[
-                            "sudo yum update -y",
-                            "npm install",
-                        ]),
-                    pre_build=dict(commands=[
-                            "pwd",
-                            "ls",#enter the name for the env
-                            #'y', "aws profile"
-                            #'\n',"use default profile"
-                        ]),
-             
-                        environment=dict(buildImage=
-                                codebuild.LinuxBuildImage.STANDARD_2_0)
-                    )
-                    )
-                )
-            )
-            
+        amplify_build = codebuild.PipelineProject(self, "Amplify_Build",
+                        build_spec=codebuild.BuildSpec.from_object(dict(
+                            version="0.2",
+                            phases=dict(
+                                install=dict(
+                                    commands=["npm install -g @aws-amplify/cli",
+                                              "sumerian=homepage.json",
+                                              "bash ./amplify_push.sh",
+                                              "npm install"
+                                              ]
+                                             ),
+                                build=dict(commands=[
+                                    "amplify publish -c --yes",]),
+                                sumerian=codebuild.BuildEnvironmentVariable(type=codebuild.BuildEnvironmentVariableType.PLAINTEXT,value="test"),
+                                environment=codebuild.LinuxBuildImage.STANDARD_2_0))
+                            ))
             
         source_output = codepipeline.Artifact()
         amplify_build_output= codepipeline.Artifact('AmplifyBuildOutput')
+        github_oauth_token=core.SecretValue.secrets_manager("/serverless-pipeline/secrets/github/token",json_field="github-token")
+        
         
         amplify_repo=codepipeline.Pipeline(
                 self, "AmplifyPipeline",
@@ -80,15 +82,15 @@ class CdkdeployStack(core.Stack):
                                 action_name="GitHub_Source",
                                 owner=repo_owner,
                                 repo=github_repo,
-                                oauth_token=core.SecretValue.secrets_manager("f904a6e064208f43a92151fc2758ae63405cece8"),
+                                oauth_token=github_oauth_token,
                                 branch="master",
                                 trigger=codepipeline_actions.GitHubTrigger.POLL,
                                 output=source_output
                                 )]),
-                    codepipeline.StageProps(stage_name="Build",
+                    codepipeline.StageProps(stage_name="Amplify_Build",
                         actions=[
                             codepipeline_actions.CodeBuildAction(
-                                action_name="AmplifyBuild",
+                                action_name="CdkBuild",
                                 project=amplify_build,
                                 input=source_output,
                                 )])
