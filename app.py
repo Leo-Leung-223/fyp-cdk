@@ -3,11 +3,9 @@
 from aws_cdk import core
 
 from cdkdeploy.cdkdeploy_stack import CdkdeployStack
-
+from cdkdeploy.sumerian_stack import SumerianStack
 
 app = core.App()
 CdkdeployStack(app, "CdkdeployStack", env={'region': 'us-east-1'})
-
-
-
+SumerianStack(app, "SumerianStack", env={'region': 'us-east-1'})
 app.synth()

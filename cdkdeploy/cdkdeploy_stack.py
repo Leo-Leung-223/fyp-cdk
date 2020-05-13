@@ -13,7 +13,10 @@ from aws_cdk import (
     aws_kms as kms,
     aws_secretsmanager as sm,
     aws_amplify as amplify,
-    core,
+    aws_ssm as ssm,
+    aws_s3  as s3,
+    aws_amplify as amplify,
+    core
 )
 
 
@@ -43,6 +46,11 @@ class CdkdeployStack(core.Stack):
         
         table.grant_read_write_data(lambda_function)  #grant permission for lambda function to write to table
         
+        
+
+        access_key_id=ssm.StringParameter(self,"access_key_id1",string_value="45646216",description="accesss_key_id")
+        access_key_id=ssm.StringParameter(self,"secret_access_key1",string_value="4564621dwdw6",description="secret_access_key")
+        
         #token=sm.Secret(self,"token_secert",
         #        description="this is github_token",
         #        secret_name=secret_name,
@@ -51,30 +59,43 @@ class CdkdeployStack(core.Stack):
         #        )    
         #        
         
-        amplify_build = codebuild.PipelineProject(self, "Amplify_Build",
+        
+    
+                            
+        amplify_build = codebuild.PipelineProject(self, "CdkBuild",
+                        environment=dict(build_image=
+                        codebuild.LinuxBuildImage.STANDARD_2_0),
+                        environment_variables=dict(sumerian=codebuild.BuildEnvironmentVariable(type=codebuild.BuildEnvironmentVariableType.PLAINTEXT,
+                        value="./sumerian_exports_0ef6a5810f964ec6bebdee28cde0055e.json")),
                         build_spec=codebuild.BuildSpec.from_object(dict(
                             version="0.2",
                             phases=dict(
                                 install=dict(
-                                    commands=["npm install -g @aws-amplify/cli",
-                                              "sumerian=homepage.json",
-                                              "bash ./amplify_push.sh",
-                                              "npm install"
-                                              ]
-                                             ),
+                                    commands=["npm install",
+                                              "npm install -g @aws-amplify/cli",
+                                              "bash ./amplify_init.sh",
+                                              "npm install"]),
                                 build=dict(commands=[
-                                    "amplify publish -c --yes",]),
-                                sumerian=codebuild.BuildEnvironmentVariable(type=codebuild.BuildEnvironmentVariableType.PLAINTEXT,value="test"),
-                                environment=codebuild.LinuxBuildImage.STANDARD_2_0))
-                            ))
-            
+                                   "amplify publish -c --yes"]))
+                             ))) 
+        
+        
+        
         source_output = codepipeline.Artifact()
         amplify_build_output= codepipeline.Artifact('AmplifyBuildOutput')
         github_oauth_token=core.SecretValue.secrets_manager("/serverless-pipeline/secrets/github/token",json_field="github-token")
         
         
+        codepipeline_role=iam.Role(self,'codepipeline_role',assumed_by=iam.ServicePrincipal("codepipeline.amazonaws.com"))
+        codepipeline_role.add_to_policy(iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            resources=["*"],actions=["*"]))
+        
+            
+        
         amplify_repo=codepipeline.Pipeline(
                 self, "AmplifyPipeline",
+                role=codepipeline_role,
                 stages=[
                     codepipeline.StageProps(stage_name="Source",
                         actions=[
@@ -96,3 +117,66 @@ class CdkdeployStack(core.Stack):
                                 )])
                     ]
             )
+            
+        bcuket_name='eventhelper-vtc-bucket'
+        my_bucke=s3.Bucket(self,bcuket_name)
+
+        eventhelper_comprehend_table= ddb.Table(self,"eventhelper_comprehend",partition_key={   #create a user table
+            'name':'Boothname', 'type': ddb.AttributeType.STRING},
+            sort_key={'name':'Time','type':ddb.AttributeType.NUMBER}
+        
+        )
+        
+        eventhelper_rekognition_table= ddb.Table(self,"eventhelper_rekognition",partition_key={   #create a user table
+            'name':'Boothname', 'type': ddb.AttributeType.STRING},
+            sort_key={'name':'Time','type':ddb.AttributeType.NUMBER}
+        
+        )
+        eventhelper_workshop_participant_table= ddb.Table(self,"eventhelper_workshop_participant",partition_key={   #create a user table
+            'name':'Workshop', 'type': ddb.AttributeType.STRING},
+            sort_key={'name':'Username','type':ddb.AttributeType.STRING}
+
+        )
+        workshopList_table= ddb.Table(self,"workshopList",partition_key={
+            'name':'Workshop', 'type': ddb.AttributeType.STRING})
+        
+
+        eventhelper_lambda_role=iam.Role(self,'eventhelper_connect_role',assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"))
+        eventhelper_lambda_role.add_to_policy(iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            resources=["*"],actions=['*']))
+        
+        eventhelper_connect_lambda=_lambda.Function(self,'eventhelper-connect',
+            runtime=_lambda.Runtime.PYTHON_3_7,code=_lambda.Code.asset("./cdkdeploy/eventhelper_connect_lambda/lambda/"),
+            handler="lambda.lambda_handler",
+            timeout=core.Duration.seconds(300),
+            environment=dict(
+                    ContactFlowId= 'None',
+                    InstanceId='None',
+                    SourcePhoneNumber='None'
+            ),role=eventhelper_lambda_role)
+        
+        eventhelper_rekognition_table.grant_read_write_data(eventhelper_connect_lambda)
+            
+            
+        eventhelper_table_comprehend_rekognition_lambda=_lambda.Function(self,'eventhelper-table-comprehend-rekognition',
+            runtime=_lambda.Runtime.PYTHON_3_7,code=_lambda.Code.asset("./cdkdeploy/eventhelper_table_comprehend_rekognition_lambda/lambda/"),
+            handler="lambda.lambda_handler",
+            timeout=core.Duration.seconds(300),
+            environment=dict(
+                    Bucket= my_bucke.bucket_name)
+            ,role=eventhelper_lambda_role)
+        
+        eventhelper_comprehend_table.grant_read_write_data(eventhelper_table_comprehend_rekognition_lambda)
+    
+            
+        eventhelper_dynamodb_update=_lambda.Function(self,'eventhelper_dynamodb_update',
+            runtime=_lambda.Runtime.PYTHON_3_7,code=_lambda.Code.asset("./cdkdeploy/eventhelper_dynamodb_update/lambda"),
+            handler="lambda.lambda_handler",
+            timeout=core.Duration.seconds(300),
+            role=eventhelper_lambda_role)
+    
+        eventhelper_workshop_participant_table.grant_read_write_data(eventhelper_dynamodb_update)
+        workshopList_table.grant_read_write_data(eventhelper_dynamodb_update)
+        
+        
