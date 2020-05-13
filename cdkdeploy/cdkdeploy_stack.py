@@ -16,6 +16,8 @@ from aws_cdk import (
     aws_ssm as ssm,
     aws_s3  as s3,
     aws_amplify as amplify,
+    aws_events_targets as targets,
+    aws_events as events,
     core
 )
 
@@ -170,13 +172,32 @@ class CdkdeployStack(core.Stack):
         eventhelper_comprehend_table.grant_read_write_data(eventhelper_table_comprehend_rekognition_lambda)
     
             
-        eventhelper_dynamodb_update=_lambda.Function(self,'eventhelper_dynamodb_update',
+        eventhelper_dynamodb_update_lambda=_lambda.Function(self,'eventhelper_dynamodb_update_lambda',
             runtime=_lambda.Runtime.PYTHON_3_7,code=_lambda.Code.asset("./cdkdeploy/eventhelper_dynamodb_update/lambda"),
             handler="lambda.lambda_handler",
             timeout=core.Duration.seconds(300),
             role=eventhelper_lambda_role)
     
-        eventhelper_workshop_participant_table.grant_read_write_data(eventhelper_dynamodb_update)
-        workshopList_table.grant_read_write_data(eventhelper_dynamodb_update)
+        eventhelper_workshop_participant_table.grant_read_write_data(eventhelper_dynamodb_update_lambda)
+        workshopList_table.grant_read_write_data(eventhelper_dynamodb_update_lambda)
         
+        eventhelper_callout_lambda=_lambda.Function(self,'eventhelper_callout_lambda',
+            runtime=_lambda.Runtime.PYTHON_3_7,code=_lambda.Code.asset("./cdkdeploy/eventhelper_callout_lambda/lambda"),
+            handler="lambda.lambda_handler",
+            timeout=core.Duration.seconds(300),
+            role=eventhelper_lambda_role)
+            
+        eventhelper_workshop_participant_table.grant_read_write_data(eventhelper_dynamodb_update_lambda)
+        workshopList_table.grant_read_write_data(eventhelper_dynamodb_update_lambda)
         
+        rule = events.Rule(
+            self, "Rule",
+            schedule=events.Schedule.cron(
+                minute='1',
+                hour='*',
+                month='*',
+                week_day='*',
+                year='*'
+                ),
+        )
+        rule.add_target(targets.LambdaFunction(eventhelper_callout_lambda)) 
