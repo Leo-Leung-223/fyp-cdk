@@ -67,8 +67,6 @@ class CdkdeployStack(core.Stack):
         amplify_build = codebuild.PipelineProject(self, "CdkBuild",
                         environment=dict(build_image=
                         codebuild.LinuxBuildImage.STANDARD_2_0),
-                        environment_variables=dict(sumerian=codebuild.BuildEnvironmentVariable(type=codebuild.BuildEnvironmentVariableType.PLAINTEXT,
-                        value="./sumerian_exports_0ef6a5810f964ec6bebdee28cde0055e.json")),
                         build_spec=codebuild.BuildSpec.from_object(dict(
                             version="0.2",
                             phases=dict(
