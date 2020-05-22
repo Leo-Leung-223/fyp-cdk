@@ -98,7 +98,7 @@ class CdkdeployStack(core.Stack):
                                                   }
                                               },
                                               "artifacts": {
-                                                  "base_directory": "public",
+                                                  "base_directory": "/",
                                                   "files": "**/*"
                                               }
 
