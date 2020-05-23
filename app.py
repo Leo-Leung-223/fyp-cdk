@@ -5,5 +5,5 @@ from aws_cdk import core
 from cdkdeploy.cdkdeploy_stack import CdkdeployStack
 
 app = core.App()
-CdkdeployStack(app, "CdkdeployStack", env={'region': 'us-east-1'})
+CdkdeployStack(app, "CdkdeployStack", env={'region': 'us-west-2'})
 app.synth()

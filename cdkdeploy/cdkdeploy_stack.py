@@ -37,7 +37,7 @@ class CdkdeployStack(core.Stack):
 
                           )
 
-        lambda_function = _lambda.Function(  # create a lambda function that log user data from registeration
+        lambda_function = _lambda.Function(   #create a lambda function that log user data from registeration
             self, "User_To_Db",
             runtime=_lambda.Runtime.PYTHON_3_7,
             code=_lambda.Code.asset("cdkdeploy/lambda"),
@@ -45,6 +45,21 @@ class CdkdeployStack(core.Stack):
             environment={
                 'TableName': table.table_name,
             })
+
+        lambda_function_update_lex = _lambda.Function(   #create a lambda function that log user data from registeration
+            self, "dynamoDBUpdateLexSlots",
+            runtime=_lambda.Runtime.PYTHON_3_7,
+            code=_lambda.Code.asset("cdkdeploy/lambda"),
+            handler="dynamoDBUpdateLexSlots.db_stream",
+            )
+
+
+        lambda_function_lex_response = _lambda.Function(   #create a lambda function that log user data from registeration
+            self, "lexResponseWithDBinPython",
+            runtime=_lambda.Runtime.PYTHON_3_7,
+            code=_lambda.Code.asset("cdkdeploy/lambda"),
+            handler="lexResponseWithDBinPython.main",
+            )
 
         table.grant_read_write_data(lambda_function)  # grant permission for lambda function to write to table
 
