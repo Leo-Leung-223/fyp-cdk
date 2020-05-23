@@ -62,6 +62,11 @@ class CdkdeployStack(core.Stack):
             resources=["*"],actions=["*"]))
         
         
+         
+        source_output = codepipeline.Artifact()
+        amplify_build_output= codepipeline.Artifact('AmplifyBuildOutput')
+        
+        
         
         amplify_app = amplify.App(self, "MyApp",
                                   role=amplify_role,
@@ -69,43 +74,14 @@ class CdkdeployStack(core.Stack):
                                       owner=repo_owner,
                                       repository=github_repo,
                                       oauth_token=core.SecretValue.secrets_manager("/serverless-pipeline/secrets/github/token",json_field="github-token")
-                                  ),
-                                  
-                                  build_spec=codebuild.BuildSpec.from_object(
-                                      {  # Alternatively add a `amplify.yml` to the repo
-                                          "version": "1.0",
-                                           "backend": {
-                                              "phases": {
-                                                  
-                                                  "build": {
-                                                      "commands": [
-                                                          'amplifyPush --simple']
-                                                  }
-                                              }},
-                                          "frontend": {
-                                              "phases": {
-                                                  "pre_build": { 
-                                                      "commands": [
-                                                          'nvm use $VERSION_NODE_10',
-                                                          "npm ci"]
-                                                  },
-                                                  "build": {
-                                                      "commands": ['nvm use $VERSION_NODE_10',
-                                                                    'node -v',
-                                                                    "npm install",
-                                                                    "npm run build"
-                                                                   ]
-                                                  }
-                                              },
-                                              "artifacts": {
-                                                  "base_directory": "/",
-                                                  "files": "**/*"
-                                              }
-
-                                          }})
+                                  )
                                   )
         
         amplify_app.add_branch("master")
+        
+        source_output = codepipeline.Artifact()
+        amplify_build_output= codepipeline.Artifact('AmplifyBuildOutput')
+
     
         bcuket_name = 'eventhelper-vtc-bucket'
         my_bucke = s3.Bucket(self, bcuket_name)
